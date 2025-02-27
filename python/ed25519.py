@@ -12,12 +12,26 @@ def H(m):
 
 def expmod(b,e,m):
   if e == 0: return 1
-  t = expmod(b,e // 2,m)**2 % m
-  if e & 1: t = (t*b) % m
+  t = expmod(b,int(e // 2),m)**2 % m
+  if int(e) & 1: t = (t*b) % m
   return t
+
+def expmod_iter(b,e,m):
+  result = 1
+  while e > 0:
+    if int(e) & 1:
+      result = (result * b) % m
+    b = (b * b) % m   # square base
+    e = e // 2          # reduce the exponent
+
+  return result
+
 
 def inv(x):
   return expmod(x,q-2,q)
+
+def inv_iter(x):
+  return expmod_iter(x,q-2,q)
 
 d = -121665 * inv(121666)
 I = expmod(2,(q-1)/4,q)
