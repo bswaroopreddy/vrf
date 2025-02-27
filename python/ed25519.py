@@ -12,7 +12,7 @@ def H(m):
 
 def expmod(b,e,m):
   if e == 0: return 1
-  t = expmod(b,e/2,m)**2 % m
+  t = expmod(b,e // 2,m)**2 % m
   if e & 1: t = (t*b) % m
   return t
 
