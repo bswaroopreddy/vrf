@@ -1,6 +1,67 @@
 #include <sodium.h>
 #include <string.h>
+#include <stdlib.h>
+#include <math.h>
+#include <gmp.h>
 #include "vrf.h"
+
+
+// Function to convert unsigned char[64] to a hex string
+void bytesToHexString(const unsigned char *bytes, char *hex_str, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        sprintf(hex_str + (i * 2), "%02x", bytes[i]);  // Convert each byte to 2 hex chars
+    }
+    hex_str[size * 2] = '\0';  // Null-terminate the string
+}
+
+// ---- computation of the fraction of two 256-bit bigint numbers. 
+// using GMP (GNU Multiple Precision Arithmetic Library) functions (gmp.h) for handling large integers.
+// Let l = |beta|
+// Compute fraction = y / 2^l
+void compute_fraction(unsigned char beta[64], mpf_t fraction) {
+    mpz_t y, denominator;
+    mpf_t denom_float;
+
+	char hex_str[129];  // 128 chars + null terminator
+
+	// Convert hash bytes to a hex string
+    bytesToHexString(beta, hex_str, 64);
+    
+    mpz_init(y);
+    mpz_init(denominator);
+    mpf_init(fraction);
+    mpf_init(denom_float);
+
+	
+    // Convert hex string to big integer
+    if (mpz_set_str(y, hex_str, 16) != 0) {
+        fprintf(stderr, "Error converting hex string to integer\n");
+        return;
+    }
+
+    gmp_printf("The value of y: %Zd\n", y);
+
+    // Compute (2^512 - 1)
+    mpz_ui_pow_ui(denominator, 2, 512);
+    mpz_sub_ui(denominator, denominator, 1);
+	gmp_printf("The value of denominator: %Zd\n", denominator);
+
+	// Convert to floating point
+    mpf_set_z(fraction, y);
+    mpf_set_z(denom_float, denominator);
+
+    // Compute fraction
+    mpf_div(fraction, fraction, denom_float);
+
+    // Print result
+    gmp_printf("Fraction: %.50Ff\n", fraction);
+
+	// Free unused memory
+    mpz_clear(y);
+    mpz_clear(denominator);
+    mpf_clear(denom_float);
+}
+
 
 // ----- vrf_ietfdraft03.h -----
 static const unsigned char SUITE = 0x04; /* ECVRF-ED25519-SHA512-Elligator2 */
@@ -10,6 +71,10 @@ static const unsigned char SUITE = 0x04; /* ECVRF-ED25519-SHA512-Elligator2 */
 
 static const unsigned char ONE = 0x01;
 static const unsigned char TWO = 0x02;
+
+// static const unsigned long long TWO_POWER_OUTPUT_LENGTH = pow(2, 64) - 1;
+// static const unsigned int TAU = 200;
+// const unsigned int W = 1000;
 
 /* Hash a message to a curve point using Elligator2.
  * Specified in VRF draft spec section 5.4.1.2.
@@ -24,7 +89,7 @@ hash_to_curve(unsigned char H_string[32],
 	const unsigned long long alphalen)
 {
 	crypto_hash_sha512_state hs;
-	unsigned char            r_string[64];
+	unsigned char r_string[64];
 
 	/* r = first 32 bytes of SHA512(suite || 0x01 || Y || alpha) */
 	crypto_hash_sha512_init(&hs);
@@ -84,7 +149,7 @@ decode_proof(unsigned char Gamma[32], unsigned char c[16],
 // ----- prove.c -----
 
 /* Utility function to convert a "secret key" (32-byte seed || 32-byte PK)
- * into the public point Y, the private saclar x, and truncated hash of the
+ * into the public point Y, the private scalar x, and truncated hash of the
  * seed to be used later in nonce generation.
  * Return 0 on success, -1 on failure decoding the public point Y.
  * NOTE: Unlike in libsodium-fork, if the public-key half of skpk is of low
@@ -341,7 +406,7 @@ verify_helper(const unsigned char Y_point[32], const unsigned char pi[80],
 int
 vrf_verify(unsigned char output[64],
 	   const unsigned char pk[32],
-	   const unsigned char proof[32],
+	   const unsigned char proof[80],
 	   const unsigned char *msg, const unsigned long long msglen)
 {
 	if ((vrf_validate_key(pk) == 0) && (verify_helper(pk, proof, msg, msglen) == 0)) {
@@ -350,3 +415,67 @@ vrf_verify(unsigned char output[64],
 		return -1;
 	}
 }
+
+int 
+cryptographic_sortition(unsigned char output[64],
+					unsigned char proof[80], 
+					const unsigned char skpk[64], 
+					const unsigned char *msg,
+					unsigned long long msglen,
+					double tau,
+					double W
+					) 
+{
+
+	int err = vrf_prove(proof, skpk, msg, msglen);
+	if (err != 0) {
+		fprintf(stderr, "prove() returned error\n");
+		return -1;
+	}
+
+	err = vrf_proof_to_hash(output, proof);
+	if (err != 0) {
+		fprintf(stderr, "proof_to_hash() returned error\n");
+		return -1;
+	}
+
+	// Define an mpf_t variable for the fraction result
+    mpf_t fraction;
+    mpf_init(fraction);
+
+    // Compute fraction
+    compute_fraction(output, fraction);
+	
+    gmp_printf("Fraction: %.50Ff\n", fraction);
+
+	double p = tau / W;
+
+	// Define an mpf_t variable for threshold and set it to `p`
+    mpf_t threshold;
+    mpf_init(threshold);
+    mpf_set_d(threshold, p);  // Convert double p to GMP floating-point
+
+	// Compare fraction with threshold
+    if (mpf_cmp(fraction, threshold) > 0) {
+		printf("Fraction is greater than or equal to %.12f\n", p);
+        return -1;
+    } 
+
+	return 0;
+}
+
+
+int
+sortition_verify(const unsigned char pk[32],
+	   const unsigned char proof[32],
+	   const unsigned char *msg, const unsigned long long msglen)
+{
+	if ((vrf_validate_key(pk) != 0) || (verify_helper(pk, proof, msg, msglen) != 0)) {
+		printf("VRF proof verification failed\n");
+		return -1;
+	}
+
+	return 0;
+	}
+
+
