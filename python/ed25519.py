@@ -57,24 +57,37 @@ def edwards(P,Q):
   return [x3 % q,y3 % q]
 
 def scalarmult(P,e):
-  if e == 0: return [0,1]
-  Q = scalarmult(P,e/2)
+  if e == 0: 
+    return [0,1]
+  Q = scalarmult(P,e // 2)
   Q = edwards(Q,Q)
-  if e & 1: Q = edwards(Q,P)
+  if e & 1: 
+    Q = edwards(Q,P)
   return Q
 
-def encodeint(y):
-  bits = [(y >> i) & 1 for i in range(b)]
-  return ''.join([chr(sum([bits[i * 8 + j] << j for j in range(8)])) for i in range(b/8)])
+# def encodeint(y):
+#   bits = [(y >> i) & 1 for i in range(b)]
+#   return ''.join([chr(sum([bits[i * 8 + j] << j for j in range(8)])) for i in range(b // 8)])
+
+# def encodepoint(P):
+#   x = P[0]
+#   y = P[1]
+#   bits = [(y >> i) & 1 for i in range(b - 1)] + [x & 1]
+#   return ''.join([chr(sum([bits[i * 8 + j] << j for j in range(8)])) for i in range(b // 8)])
 
 def encodepoint(P):
-  x = P[0]
-  y = P[1]
-  bits = [(y >> i) & 1 for i in range(b - 1)] + [x & 1]
-  return ''.join([chr(sum([bits[i * 8 + j] << j for j in range(8)])) for i in range(b/8)])
+    x = P[0]
+    y = P[1]
+    bits = [(y >> i) & 1 for i in range(b - 1)] + [x & 1]
+    return bytes([sum([bits[i * 8 + j] << j for j in range(8)]) for i in range(b // 8)])
 
-def bit(h,i):
-  return (ord(h[i/8]) >> (i%8)) & 1
+def encodeint(y):
+    bits = [(y >> i) & 1 for i in range(b)]
+    return bytes([sum([bits[i * 8 + j] << j for j in range(8)]) for i in range(b // 8)])
+
+
+def bit(h, i):
+    return (h[i // 8] >> (i % 8)) & 1
 
 def publickey(sk):
   h = H(sk)

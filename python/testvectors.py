@@ -2,12 +2,15 @@
 # Generate some VRF test vectors of the form:
 # {seed, pk, proof, hash, msg}
 
+import base64
 import vrf
 import os
 
 def make_testvector(msglen):
 	sk = os.urandom(32)
 	msg = os.urandom(msglen)
+	s = base64.b64encode(msg).decode('utf-8')
+
 	#_, pk = vrf.sk_to_privpub(sk)
 	pk = vrf.publickey(sk)
 	proof = vrf.vrf_prove(sk, msg)
@@ -21,5 +24,5 @@ def format_testvector(sk, pk, proof, hash, msg):
 	return "{%s,%s,%s,%s,%s}" % (tobytearray(sk), tobytearray(pk), tobytearray(proof), tobytearray(hash), tobytestring(msg))
 
 if __name__ == '__main__':
-	for i in range(10):
+	for i in range(1):
 		print(format_testvector(*make_testvector(i)) + ",")
