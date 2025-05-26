@@ -455,6 +455,7 @@ cryptographic_sortition(unsigned char output[64],
     mpf_init(threshold);
     mpf_set_d(threshold, p);  // Convert double p to GMP floating-point
 
+	printf("Checking the fraction with threshold value for mn node proof of qorum");
 	// Compare fraction with threshold
     if (mpf_cmp(fraction, threshold) > 0) {
 		printf("Fraction is greater than or equal to %.12f\n", p);
